@@ -1,0 +1,19 @@
+# Binaries
+elasticsearch-mcp
+elasticsearch-mcp.exe
+bin/
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config (contains REDACTED_SECRETs - ignore all real configs, keep .example files)
+etc/
+!etc/*.example
+!etc/*.example.yaml

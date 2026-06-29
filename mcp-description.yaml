@@ -1,0 +1,1138 @@
+server:
+  description: |
+    ### Elasticsearch MCP Server
+    本 MCP 插件为 AI 提供了一套标准化的 Elasticsearch 集群运维与数据查询工具，支持同时接入多个 Elasticsearch 数据源，实现跨集群的统一管理与检索。
+    插件覆盖集群监控、索引管理、文档操作、灵活搜索、日志查询、Thanos 监控六大核心能力，所有工具均支持通过 datasource 参数切换目标集群。
+    当前接入数据源：prod-hedan-elk-rke（默认）、rapid-elk-rke、tob-elk-rke，均为 Elasticsearch 7.x 集群。
+  name: "elasticsearch-mcp-server"
+  REDACTED_PASSthroughAuthHeader: true
+
+tools:
+  # ===== 实例与集群 =====
+
+  - name: "foundation.elasticsearch.list-instances"
+    description: "列出所有已配置的 Elasticsearch 集群数据源实例，返回数据源名称列表和默认数据源"
+
+  - name: "foundation.elasticsearch.query-cluster-info"
+    description: "获取 Elasticsearch 集群基本信息，包括集群名称、UUID、节点名称、ES 版本号、Lucene 版本等"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选，不传则使用默认数据源，可通过 foundation.elasticsearch.list-instances 查看所有可用数据源）"
+        required: false
+
+  - name: "foundation.elasticsearch.query-cluster-health"
+    description: "获取集群健康状态，包括 green/yellow/red 状态、节点数、活跃分片数、未分配分片数等核心指标"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.analyze-cluster-health"
+    description: "深度分析集群健康状态变化的根因，特别是从 green 变为 yellow 或 red 的原因。自动执行 allocation/explain、磁盘水位线检查、red 索引逐个分析"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.query-cluster-stats"
+    description: "获取集群级别的综合统计信息，包括索引总数、文档总数、存储总量、节点角色分布、JVM 内存使用、操作系统资源等"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.query-nodes-info"
+    description: "获取集群节点详细信息，包括 JVM 配置、操作系统信息、已安装插件、节点角色、传输地址等"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+      - name: "node_id"
+        type: "string"
+        description: "指定节点 ID（可选，不指定则返回所有节点）"
+        required: false
+
+  - name: "foundation.elasticsearch.query-nodes-stats"
+    description: "获取节点运行时统计指标，包括 CPU 使用率、JVM 堆内存/GC 统计、磁盘 I/O、线程池队列/拒绝数、索引操作速率等"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+      - name: "node_id"
+        type: "string"
+        description: "指定节点 ID（可选）"
+        required: false
+      - name: "metric"
+        type: "string"
+        description: "指标类型过滤：indices, os, process, jvm, thread_pool, fs, transport, http（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.resolve-node"
+    description: "将节点 ID 翻译为可读的节点名称（即 k8s pod 名称）。如果节点已离线则返回当前所有在线节点列表供对比"
+    args:
+      - name: "node_id"
+        type: "string"
+        description: "要查询的节点 ID（必填）"
+        required: true
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  # ===== 索引操作 =====
+
+  - name: "foundation.elasticsearch.list-indices"
+    description: "列出集群中的索引，返回每个索引的健康状态、开关状态、文档数、存储大小、主分片/副本数等元数据。支持通配符模式匹配"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+      - name: "pattern"
+        type: "string"
+        description: "索引名称模式，支持通配符 *（可选，如 logs-2024*）"
+        required: false
+
+  - name: "foundation.elasticsearch.check-index-exists"
+    description: "检查指定索引是否存在于目标 Elasticsearch 集群中，返回布尔值"
+    args:
+      - name: "index"
+        type: "string"
+        description: "要检查的索引名称"
+        required: true
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.query-index-detail"
+    description: "获取索引的完整定义，包括 mappings、settings、aliases"
+    args:
+      - name: "index"
+        type: "string"
+        description: "索引名称"
+        required: true
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.query-index-mapping"
+    description: "获取索引的字段映射定义，包括字段名称、数据类型、分析器配置等"
+    args:
+      - name: "index"
+        type: "string"
+        description: "索引名称"
+        required: true
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.query-index-settings"
+    description: "获取索引的配置设置，包括主分片数、副本数、刷新间隔、分析器定义、translog 策略等"
+    args:
+      - name: "index"
+        type: "string"
+        description: "索引名称"
+        required: true
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.query-index-stats"
+    description: "获取索引级别的详细统计信息，包括文档数、存储大小、索引/搜索/合并/刷新/flush 操作的次数和耗时"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+      - name: "index"
+        type: "string"
+        description: "索引名称（可选，不指定则返回所有索引的统计）"
+        required: false
+
+  - name: "foundation.elasticsearch.create-index"
+    description: "创建新的 Elasticsearch 索引，可指定 mappings 和 settings"
+    args:
+      - name: "index"
+        type: "string"
+        description: "索引名称"
+        required: true
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+      - name: "settings"
+        type: "object"
+        description: "索引设置（可选）"
+        required: false
+      - name: "mappings"
+        type: "object"
+        description: "字段映射定义（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.open-index"
+    description: "打开已关闭的索引，使其恢复可读写状态"
+    args:
+      - name: "index"
+        type: "string"
+        description: "索引名称"
+        required: true
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.close-index"
+    description: "关闭索引，关闭后索引不可读写但数据保留在磁盘上，释放集群内存和计算资源"
+    args:
+      - name: "index"
+        type: "string"
+        description: "索引名称"
+        required: true
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  # ===== 别名操作 =====
+
+  - name: "foundation.elasticsearch.list-aliases"
+    description: "列出索引别名信息，展示别名与索引的映射关系"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+      - name: "index"
+        type: "string"
+        description: "按索引名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.query-alias-detail"
+    description: "获取指定别名的详细信息，包括该别名关联的所有索引、过滤条件、路由配置"
+    args:
+      - name: "alias"
+        type: "string"
+        description: "别名名称"
+        required: true
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  # ===== 文档操作 =====
+
+  - name: "foundation.elasticsearch.query-document"
+    description: "根据文档 ID 精确检索单个文档的完整内容"
+    args:
+      - name: "index"
+        type: "string"
+        description: "索引名称"
+        required: true
+      - name: "id"
+        type: "string"
+        description: "文档 ID"
+        required: true
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.count-documents"
+    description: "统计文档数量，支持按查询条件过滤。比 search 更轻量，不返回文档内容"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+      - name: "index"
+        type: "string"
+        description: "索引名称（可选）"
+        required: false
+      - name: "query"
+        type: "object"
+        description: "查询条件（DSL 格式，可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.create-document"
+    description: "索引（写入）一个文档到指定索引。可指定文档 ID 实现幂等写入，不指定则自动生成 ID"
+    args:
+      - name: "index"
+        type: "string"
+        description: "索引名称"
+        required: true
+      - name: "body"
+        type: "object"
+        description: "文档内容（JSON 对象）"
+        required: true
+      - name: "id"
+        type: "string"
+        description: "文档 ID（可选，不指定则自动生成）"
+        required: false
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  # ===== 搜索操作 =====
+
+  - name: "foundation.elasticsearch.search"
+    description: "执行 Elasticsearch DSL 搜索查询，支持全文检索、精确匹配、范围过滤、排序、分页、聚合分析、高亮显示等完整搜索能力"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+      - name: "index"
+        type: "string"
+        description: "目标索引名称（可选，不指定则搜索所有索引）"
+        required: false
+      - name: "query"
+        type: "object"
+        description: "查询 DSL（可选，默认 match_all）"
+        required: false
+      - name: "size"
+        type: "integer"
+        description: "返回结果数量（默认 10）"
+        required: false
+      - name: "from"
+        type: "integer"
+        description: "分页偏移量（默认 0）"
+        required: false
+      - name: "sort"
+        type: "array"
+        description: "排序规则（可选）"
+        required: false
+      - name: "_source"
+        type: "boolean | array | object"
+        description: "源字段过滤（可选）"
+        required: false
+      - name: "aggs"
+        type: "object"
+        description: "聚合定义（可选）"
+        required: false
+      - name: "highlight"
+        type: "object"
+        description: "高亮配置（可选）"
+        required: false
+      - name: "track_total_hits"
+        type: "boolean"
+        description: "是否追踪总命中数（默认 true，设为 false 可提升查询性能）"
+        required: false
+
+  - name: "foundation.elasticsearch.query-sql"
+    description: "使用 SQL 语法查询 Elasticsearch 数据，支持 json/csv/txt 等返回格式"
+    args:
+      - name: "query"
+        type: "string"
+        description: "SQL 查询语句"
+        required: true
+      - name: "format"
+        type: "string"
+        description: "返回格式：json（默认）、csv、txt"
+        required: false
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.translate-sql"
+    description: "将 SQL 语句翻译为 Elasticsearch DSL 查询"
+    args:
+      - name: "query"
+        type: "string"
+        description: "SQL 查询语句"
+        required: true
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  # ===== 分片与段 =====
+
+  - name: "foundation.elasticsearch.list-shards"
+    description: "获取分片级别的详细信息，包括分片状态、大小、文档数、所在节点"
+    args:
+      - name: "index"
+        type: "string"
+        description: "索引名称（必填，支持通配符）"
+        required: true
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.list-segments"
+    description: "获取 Lucene 段级别的信息，包括段大小、文档数、已删除文档数、是否可搜索等"
+    args:
+      - name: "index"
+        type: "string"
+        description: "索引名称（必填，支持通配符）"
+        required: true
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  # ===== 任务管理 =====
+
+  - name: "foundation.elasticsearch.list-tasks"
+    description: "列出集群中正在运行的任务，包括搜索、索引、合并、快照等操作"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+      - name: "detailed"
+        type: "boolean"
+        description: "是否显示详细信息（默认 false）"
+        required: false
+      - name: "actions"
+        type: "string"
+        description: "按操作类型过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.query-task-detail"
+    description: "获取指定任务的详细信息和执行进度。任务 ID 格式为 node_id:task_number"
+    args:
+      - name: "task_id"
+        type: "string"
+        description: "任务 ID（格式：node_id:task_number）"
+        required: true
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  # ===== 模板管理 =====
+
+  - name: "foundation.elasticsearch.list-templates"
+    description: "列出所有索引模板，显示模板名称、匹配模式、优先级等信息"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.query-template-detail"
+    description: "获取指定索引模板的完整定义，包括匹配模式、mappings、settings、aliases 配置"
+    args:
+      - name: "name"
+        type: "string"
+        description: "模板名称"
+        required: true
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  # ===== 快照管理 =====
+
+  - name: "foundation.elasticsearch.list-repositories"
+    description: "列出所有已注册的快照仓库，包括仓库类型和配置信息"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.list-snapshots"
+    description: "列出指定仓库中的所有快照，包括快照状态、包含的索引、开始/结束时间、分片成功/失败数"
+    args:
+      - name: "repository"
+        type: "string"
+        description: "快照仓库名称"
+        required: true
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  # ===== ILM 生命周期管理 =====
+
+  - name: "foundation.elasticsearch.list-ilm-policies"
+    description: "列出所有索引生命周期管理（ILM）策略，包括各阶段的配置"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.query-ilm-status"
+    description: "获取指定索引的 ILM 执行状态，包括当前所处阶段、步骤、执行时间、是否有错误等"
+    args:
+      - name: "index"
+        type: "string"
+        description: "索引名称"
+        required: true
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  # ===== SRE 诊断工具 =====
+
+  - name: "foundation.elasticsearch.list-allocation"
+    description: "获取各节点的分片分配和磁盘使用情况，包括分片数、已用磁盘、可用磁盘、磁盘使用百分比"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.list-thread-pools"
+    description: "获取各节点线程池的状态，包括活跃线程数、队列长度、拒绝次数"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+      - name: "thread_pool"
+        type: "string"
+        description: "线程池名称过滤，如 write、search、bulk（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.list-pending-tasks"
+    description: "获取集群待处理的任务队列，包括任务优先级、来源、等待时间"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.list-recovery"
+    description: "获取索引分片恢复进度信息，包括恢复类型、源/目标节点、已传输字节数、进度百分比"
+    args:
+      - name: "index"
+        type: "string"
+        description: "索引名称（必填，支持通配符）"
+        required: true
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.query-hot-threads"
+    description: "获取节点的热线程（Hot Threads）堆栈信息，显示 CPU 占用最高的线程正在执行的操作"
+    args:
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+      - name: "node_id"
+        type: "string"
+        description: "指定节点 ID（可选）"
+        required: false
+
+  # ===== 日志查询（Discover 系列） =====
+
+  - name: "foundation.elasticsearch.discover-logs"
+    description: "面向开发者的日志搜索工具，类似 Kibana Discover。指定索引、时间范围、关键词，返回匹配的日志条目。内置上下文保护机制"
+    args:
+      - name: "index"
+        type: "string"
+        description: "索引名称或模式（如 app-logs-*）"
+        required: true
+      - name: "keyword"
+        type: "string"
+        description: "搜索关键词，支持 Lucene 语法"
+        required: false
+      - name: "start_time"
+        type: "string"
+        description: "开始时间（如 now-1h）"
+        required: false
+      - name: "end_time"
+        type: "string"
+        description: "结束时间（默认 now）"
+        required: false
+      - name: "size"
+        type: "integer"
+        description: "返回条数（默认 20，最大 200）"
+        required: false
+      - name: "sort_order"
+        type: "string"
+        description: "时间排序：desc（默认）或 asc"
+        required: false
+      - name: "filter"
+        type: "object"
+        description: "额外 DSL 过滤条件"
+        required: false
+      - name: "_source"
+        type: "array"
+        description: "返回字段过滤（可选）"
+        required: false
+      - name: "max_field_len"
+        type: "integer"
+        description: "单个字段最大字符数（默认 500）"
+        required: false
+      - name: "compact"
+        type: "boolean"
+        description: "紧凑模式（默认 false）"
+        required: false
+      - name: "track_total_hits"
+        type: "boolean"
+        description: "是否追踪总命中数（默认 true）"
+        required: false
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.summarize-logs"
+    description: "对大量日志做服务端聚合统计，不返回原始日志，只返回统计结论。包括总日志数、级别分布、错误消息 Top N、分组统计"
+    args:
+      - name: "index"
+        type: "string"
+        description: "索引名称或模式"
+        required: true
+      - name: "keyword"
+        type: "string"
+        description: "搜索关键词（可选）"
+        required: false
+      - name: "start_time"
+        type: "string"
+        description: "开始时间"
+        required: false
+      - name: "group_by_fields"
+        type: "array"
+        description: "按哪些字段分组统计"
+        required: false
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.query-log-context"
+    description: "查看某条日志前后的上下文，类似 Kibana 的 View surrounding documents"
+    args:
+      - name: "index"
+        type: "string"
+        description: "索引名称"
+        required: true
+      - name: "timestamp"
+        type: "string"
+        description: "目标日志的时间戳（ISO8601）"
+        required: true
+      - name: "doc_id"
+        type: "string"
+        description: "目标日志的文档 ID（可选）"
+        required: false
+      - name: "before_count"
+        type: "integer"
+        description: "向前获取的条数（默认 5）"
+        required: false
+      - name: "after_count"
+        type: "integer"
+        description: "向后获取的条数（默认 5）"
+        required: false
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.query-field-stats"
+    description: "获取索引的字段列表、类型和值分布，帮助构建查询条件。keyword/boolean 字段返回 Top N，数值字段返回 min/max/avg"
+    args:
+      - name: "index"
+        type: "string"
+        description: "索引名称或模式"
+        required: true
+      - name: "fields"
+        type: "array"
+        description: "指定要统计的字段（可选）"
+        required: false
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.scroll-logs"
+    description: "基于 search_after 的深度翻页，突破 from+size 的 10000 条限制。首次不传 search_after，后续传入上一页返回的 next_search_after 值"
+    args:
+      - name: "index"
+        type: "string"
+        description: "索引名称或模式"
+        required: true
+      - name: "search_after"
+        type: "array"
+        description: "上一页返回的 next_search_after 值（首次不传）"
+        required: false
+      - name: "keyword"
+        type: "string"
+        description: "搜索关键词（可选）"
+        required: false
+      - name: "size"
+        type: "integer"
+        description: "每页条数（默认 20，最大 200）"
+        required: false
+      - name: "compact"
+        type: "boolean"
+        description: "紧凑模式（默认 false）"
+        required: false
+      - name: "datasource"
+        type: "string"
+        description: "数据源名称（可选）"
+        required: false
+
+  # ===== Thanos 监控 =====
+
+  - name: "foundation.elasticsearch.monitor-kpi-overview"
+    description: "一次性获取 ES 集群的核心 KPI 指标：集群健康状态、断路器触发次数、待处理任务数、关键资源使用率、节点数、分片状态、文件句柄总数"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选，支持正则）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-cluster-disk"
+    description: "获取集群磁盘总用量和总使用率。磁盘超过 80%/85%/95% 分别触发不同水位线告警"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-cluster-ops"
+    description: "获取集群级别的核心操作速率：搜索/写入/Translog/Refresh/Flush/Merge OPS"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-thread-pool"
+    description: "获取各节点线程池的活跃线程数、队列长度、拒绝次数"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-nodes-cpu-memory"
+    description: "获取各节点的 CPU 使用率、JVM 堆内存使用量/使用率/已提交量、操作系统内存使用率"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-nodes-gc"
+    description: "获取各节点的 GC 次数和 GC 耗时（young/old 分代）"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-nodes-jvm-heap"
+    description: "获取各节点 JVM 堆内存使用量、使用率、5 分钟平均使用率"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-nodes-disk"
+    description: "获取各节点的磁盘使用率、磁盘用量、磁盘设备读写速率和读写 IOPS"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-breakers"
+    description: "获取各节点各类断路器的触发次数、当前预估内存、限制值"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-index-perf"
+    description: "获取各索引的搜索/写入 OPS 及对应的延迟"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-index-cache"
+    description: "获取 Query Cache 命中数/未命中数/驱逐数、Fielddata 内存使用量"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-nodes-network"
+    description: "获取各节点的 Transport 层连接数、发送/接收字节速率、数据包速率"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-segments"
+    description: "获取各节点的 Segment 数量、Segment 内存占用、文件描述符使用数/最大数"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-nodes-latency"
+    description: "获取各节点的搜索查询延迟、写入延迟、段合并延迟的汇总统计"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-cluster-indices"
+    description: "获取集群的索引总数量、索引总大小、各索引的存储大小和文档数排行"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+
+  - name: "foundation.elasticsearch.monitor-index-doc-count"
+    description: "获取各索引的主分片文档数、全量文档数及其增长速率"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-index-store-size"
+    description: "获取各索引的主分片存储大小、全量存储大小及其增长速率"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-index-maintenance-ops"
+    description: "获取各索引的 Refresh/Flush/Merge OPS 和延迟"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-index-memory-details"
+    description: "获取各索引的内存细分：Doc Values/Fields/Fixed Bit Set/Index Writer/Norms/Points/Terms/Version Map 内存"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-index-shards"
+    description: "获取各索引的分片大小分布、超大分片（>25GB）检测、副本数检测"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+
+  - name: "foundation.elasticsearch.monitor-nodes-maintenance"
+    description: "获取各节点的 Refresh/Merge/Flush 耗时"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-nodes-jvm-heap-details"
+    description: "获取各节点 JVM 堆内存的分区使用情况（Young/Old/Survivor）"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-nodes-topology"
+    description: "获取各节点的角色、OS 信息、JVM 版本、ES 版本、文档数、存储大小"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-cost-overview"
+    description: "获取 ES 集群的资源配置与实际使用量对比，用于成本核算和资源利用率评估"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-capacity-watermark"
+    description: "获取各节点磁盘使用率/剩余量、集群总存储使用率、索引存储/文档增长速率。用于容量规划和扩容决策"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-index-storage-topn"
+    description: "获取存储占用最大/增长最快/文档数最多的 Top 20 索引"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+
+  - name: "foundation.elasticsearch.monitor-write-performance"
+    description: "获取集群和各节点的写入 OPS/延迟、Bulk 拒绝数、Translog/Refresh/Flush/Merge 延迟"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-search-performance"
+    description: "获取集群和各节点的搜索 OPS/延迟、Query Cache 命中率、Fielddata 内存、段数量"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false
+
+  - name: "foundation.elasticsearch.monitor-node-balance"
+    description: "获取各节点的分片数、存储大小、CPU 使用率、JVM 堆使用率、搜索/写入 OPS 对比，用于发现热点节点"
+    args:
+      - name: "cluster"
+        type: "string"
+        description: "k8s 集群名称"
+        required: true
+      - name: "namespace"
+        type: "string"
+        description: "k8s 命名空间"
+        required: true
+      - name: "name"
+        type: "string"
+        description: "节点名称过滤（可选）"
+        required: false

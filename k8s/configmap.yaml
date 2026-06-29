@@ -1,0 +1,2 @@
+# This configmap contains sensitive data, copy from the example and fill in your values
+# See: etc/elasticsearch.yaml.example
